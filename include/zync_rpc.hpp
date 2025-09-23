@@ -10,7 +10,7 @@
 #include <functional>
 #include <stdexcept>
 
-namespace zmq_rpc {
+namespace zync_rpc {
 
 struct TimeoutException : public std::runtime_error {
     TimeoutException(const std::string& msg) : std::runtime_error(msg) {}
@@ -62,4 +62,4 @@ private:
     std::function<std::string(const std::string&)> handler_;
 };
 
-} // namespace zmq_rpc
+} // namespace zync_rpc

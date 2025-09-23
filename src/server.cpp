@@ -1,6 +1,6 @@
-#include "zmq_rpc.hpp"
+#include "zync_rpc.hpp"
 
-namespace zmq_rpc {
+namespace zync_rpc {
 
 // ----------------- SERVER IMPLEMENTATION -----------------
 Server::Server(const std::string& bind_addr, int timeout_sec)
@@ -75,4 +75,4 @@ void Server::check_timeouts() {
     }
 }
 
-} // namespace zmq_rpc
+} // namespace zync_rpc

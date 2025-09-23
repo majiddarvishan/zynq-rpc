@@ -1,4 +1,4 @@
-#include "zmq_rpc.hpp"
+#include "zync_rpc.hpp"
 #include <thread>
 #include <chrono>
 #include <vector>
@@ -17,7 +17,7 @@ const std::vector<std::string> COLORS = {
 const std::string COLOR_RESET = "\033[0m";
 
 void run_client(int id) {
-    zmq_rpc::Client client("tcp://localhost:5555");
+    zync_rpc::Client client("tcp://localhost:5555");
     std::string color = COLORS[id % COLORS.size()];
 
     client.set_request_handler([id, color](const std::string& payload) -> std::string {

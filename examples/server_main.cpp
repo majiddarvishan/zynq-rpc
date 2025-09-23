@@ -1,4 +1,4 @@
-#include "zmq_rpc.hpp"
+#include "zync_rpc.hpp"
 #include <thread>
 #include <chrono>
 #include <iostream>
@@ -9,7 +9,7 @@ std::vector<std::string> COLORS = {
 const std::string RESET = "\033[0m";
 
 int main() {
-    zmq_rpc::Server server("tcp://*:5555", 5);
+    zync_rpc::Server server("tcp://*:5555", 5);
     int counter = 0;
 
     while (true) {

@@ -1,9 +1,9 @@
-#include "zmq_rpc.hpp"
+#include "zync_rpc.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
 
-namespace zmq_rpc {
+namespace zync_rpc {
 
 // ----------------- CLIENT IMPLEMENTATION -----------------
 Client::Client(const std::string& server_addr)
@@ -49,4 +49,4 @@ void Client::poll_loop() {
     }
 }
 
-} // namespace zmq_rpc
+} // namespace zync_rpc
