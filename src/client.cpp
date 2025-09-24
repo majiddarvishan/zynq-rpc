@@ -1,17 +1,23 @@
-#include "zync_rpc.hpp"
+#include "zynq_rpc.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
 
-namespace zync_rpc {
+namespace zynq_rpc {
 
-// ----------------- CLIENT IMPLEMENTATION -----------------
+
 Client::Client(const std::string& server_addr)
     : context_(1), dealer_(context_, zmq::socket_type::dealer), running_(true)
 {
     identity_ = "client-" + std::to_string(rand() % 10000);
     dealer_.set(zmq::sockopt::routing_id, identity_);
     dealer_.connect(server_addr);
+
+    // Send HELLO to register
+    dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
+    dealer_.send(zmq::buffer("HELLO"), zmq::send_flags::sndmore);
+    dealer_.send(zmq::buffer(identity_), zmq::send_flags::none);
+
     worker_ = std::thread([this]{ poll_loop(); });
 }
 
@@ -41,12 +47,11 @@ void Client::poll_loop() {
             result = "Processed(" + payload_str + ")";
         }
 
-        dealer_.send(req_id, zmq::send_flags::sndmore);
+        dealer_.send(zmq::buffer(req_id_str), zmq::send_flags::sndmore);
         dealer_.send(zmq::buffer(result), zmq::send_flags::none);
 
         std::cout << "[" << identity_ << "] Responded id=" << req_id_str
                   << " result=" << result << std::endl;
     }
 }
-
-} // namespace zync_rpc
+}
