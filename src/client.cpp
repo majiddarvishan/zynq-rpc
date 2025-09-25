@@ -5,8 +5,11 @@
 
 namespace zynq_rpc {
 
-Client::Client(const std::string& server_addr)
+Client::Client(const std::string& server_addr,
+               std::chrono::seconds heartbeat_interval)
     : context_(1), dealer_(context_, zmq::socket_type::dealer), running_(true)
+    , heartbeat_interval_(heartbeat_interval)
+
 {
     identity_ = "client-" + std::to_string(rand() % 10000);
     dealer_.set(zmq::sockopt::routing_id, identity_);
@@ -19,6 +22,8 @@ Client::Client(const std::string& server_addr)
     dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
     dealer_.send(frames[0], zmq::send_flags::sndmore);
     dealer_.send(frames[1], zmq::send_flags::none);
+
+    mark_activity();
 
     // Start threads
     worker_ = std::thread([this]{ poll_loop(); });
@@ -33,6 +38,10 @@ Client::~Client() {
     if (heartbeat_thread_.joinable()) heartbeat_thread_.join();
 }
 
+void Client::mark_activity() {
+    last_activity_ = std::chrono::steady_clock::now();
+}
+
 void Client::unbind() {
     if (running_) {
         std::cout << "[" << identity_ << "] 👋 Sending BYE" << std::endl;
@@ -42,6 +51,8 @@ void Client::unbind() {
         dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
         dealer_.send(frames[0], zmq::send_flags::sndmore);
         dealer_.send(frames[1], zmq::send_flags::none);
+
+        mark_activity();
     }
 }
 
@@ -60,6 +71,8 @@ void Client::poll_loop() {
         dealer_.recv(req_id);
         dealer_.recv(payload);
 
+        mark_activity();
+
         std::string req_id_str(static_cast<char*>(req_id.data()), req_id.size());
         std::string payload_str(static_cast<char*>(payload.data()), payload.size());
 
@@ -73,6 +86,8 @@ void Client::poll_loop() {
         dealer_.send(zmq::buffer(req_id_str), zmq::send_flags::sndmore);
         dealer_.send(zmq::buffer(result), zmq::send_flags::none);
 
+        mark_activity();
+
         std::cout << "[" << identity_ << "] Responded id=" << req_id_str
                   << " result=" << result << std::endl;
     }
@@ -80,16 +95,19 @@ void Client::poll_loop() {
 
 void Client::heartbeat_loop() {
     while (running_) {
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
 
-        ControlPacket pkt{ControlType::PING, identity_};
-        auto frames = pkt.to_frames();
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_activity_ > heartbeat_interval_) {
+            ControlPacket pkt{ControlType::PING, identity_};
+            auto frames = pkt.to_frames();
+            dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
+            dealer_.send(frames[0], zmq::send_flags::sndmore);
+            dealer_.send(frames[1], zmq::send_flags::none);
 
-        dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
-        dealer_.send(frames[0], zmq::send_flags::sndmore);
-        dealer_.send(frames[1], zmq::send_flags::none);
-
-        std::cout << "[" << identity_ << "] ❤️ Sent heartbeat" << std::endl;
+            std::cout << "[" << identity_ << "] ❤️ Idle heartbeat sent" << std::endl;
+            mark_activity();
+        }
     }
 }
 

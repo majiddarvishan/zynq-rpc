@@ -99,7 +99,8 @@ private:
 // ==================================================
 class Client {
 public:
-    Client(const std::string& server_addr);
+    Client(const std::string& server_addr,
+           std::chrono::seconds heartbeat_interval = std::chrono::seconds(5));
     ~Client();
 
     void set_request_handler(std::function<std::string(const std::string&)> handler);
@@ -110,6 +111,7 @@ public:
 private:
     void poll_loop();
     void heartbeat_loop();
+    void mark_activity();
 
     zmq::context_t context_;
     zmq::socket_t dealer_;
@@ -118,6 +120,9 @@ private:
     std::thread worker_;
     std::thread heartbeat_thread_;
     std::function<std::string(const std::string&)> handler_;
+
+    std::chrono::steady_clock::time_point last_activity_;
+    std::chrono::seconds heartbeat_interval_{5};           // idle threshold
 };
 
 } // namespace zynq_rpc
