@@ -66,33 +66,6 @@ void Server::monitor_loop() {
         }
     }
 }
-// void Server::monitor_loop(const std::string& endpoint) {
-//     while (running_) {
-//         zmq::message_t event_msg;
-//         zmq::message_t addr_msg;
-//         if (!monitor_socket_.recv(event_msg, zmq::recv_flags::dontwait)) {
-//             std::this_thread::sleep_for(std::chrono::milliseconds(50));
-//             continue;
-//         }
-//         monitor_socket_.recv(addr_msg);
-
-//         // Decode event struct
-//         zmq_event_t event;
-//         memcpy(&event, event_msg.data(), sizeof(event));
-
-//         if (event.event == ZMQ_EVENT_DISCONNECTED) {
-//             std::string addr(static_cast<char*>(addr_msg.data()), addr_msg.size());
-//             std::lock_guard<std::mutex> lock(mutex_);
-
-//             // Find which client got disconnected
-//             for (auto it = clients_.begin(); it != clients_.end();) {
-//                 std::cout << "[Server] 🔌 Client disconnected: " << *it << std::endl;
-//                 last_seen_.erase(*it);
-//                 it = clients_.erase(it);
-//             }
-//         }
-//     }
-// }
 
 std::string Server::pick_client() {
     if (clients_.empty()) {
@@ -147,7 +120,14 @@ void Server::poll_loop() {
                 }
             } else if (frame1 == "PING") {
                 std::cout << "[Server] 🔄 Heartbeat from " << client_id << std::endl;
-            } else {
+            }
+            else if (frame1 == "BYE")
+            {
+                std::cout << "[Server] 👋 Client says BYE: " << client_id << std::endl;
+                clients_.erase(std::remove(clients_.begin(), clients_.end(), client_id), clients_.end());
+                last_seen_.erase(client_id);
+            }
+            else {
                 // normal response
                 std::string resp_id = frame1;
                 std::string resp_val = frame2;

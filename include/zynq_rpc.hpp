@@ -46,7 +46,6 @@ private:
     void check_timeouts();
     void cleanup_clients();
     std::string pick_client();
-    // void monitor_loop(const std::string& endpoint);
     void monitor_loop();
 
 
@@ -75,6 +74,9 @@ public:
     ~Client();
 
     void set_request_handler(std::function<std::string(const std::string&)> handler);
+
+    // Graceful disconnect
+    void unbind();
 
 private:
     void poll_loop();

@@ -23,9 +23,20 @@ Client::Client(const std::string& server_addr)
 }
 
 Client::~Client() {
+    unbind();  // ensure we send BYE on destruction
+
     running_ = false;
     if (worker_.joinable()) worker_.join();
     if (heartbeat_thread_.joinable()) heartbeat_thread_.join();
+}
+
+void Client::unbind() {
+    if (running_) {
+        std::cout << "[" << identity_ << "] 👋 Sending BYE" << std::endl;
+        dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
+        dealer_.send(zmq::buffer("BYE"), zmq::send_flags::sndmore);
+        dealer_.send(zmq::buffer(identity_), zmq::send_flags::none);
+    }
 }
 
 void Client::set_request_handler(std::function<std::string(const std::string&)> handler) {
