@@ -5,7 +5,6 @@
 
 namespace zynq_rpc {
 
-
 Client::Client(const std::string& server_addr)
     : context_(1), dealer_(context_, zmq::socket_type::dealer), running_(true)
 {
@@ -13,17 +12,20 @@ Client::Client(const std::string& server_addr)
     dealer_.set(zmq::sockopt::routing_id, identity_);
     dealer_.connect(server_addr);
 
-    // Send HELLO to register
+    // Register with HELLO
     dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
     dealer_.send(zmq::buffer("HELLO"), zmq::send_flags::sndmore);
     dealer_.send(zmq::buffer(identity_), zmq::send_flags::none);
 
+    // Start threads
     worker_ = std::thread([this]{ poll_loop(); });
+    heartbeat_thread_ = std::thread([this]{ heartbeat_loop(); });
 }
 
 Client::~Client() {
     running_ = false;
     if (worker_.joinable()) worker_.join();
+    if (heartbeat_thread_.joinable()) heartbeat_thread_.join();
 }
 
 void Client::set_request_handler(std::function<std::string(const std::string&)> handler) {
@@ -33,7 +35,11 @@ void Client::set_request_handler(std::function<std::string(const std::string&)> 
 void Client::poll_loop() {
     while (running_) {
         zmq::message_t empty, req_id, payload;
-        dealer_.recv(empty);
+        if (!dealer_.recv(empty, zmq::recv_flags::dontwait)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+
         dealer_.recv(req_id);
         dealer_.recv(payload);
 
@@ -54,4 +60,17 @@ void Client::poll_loop() {
                   << " result=" << result << std::endl;
     }
 }
+
+void Client::heartbeat_loop() {
+    while (running_) {
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+
+        dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
+        dealer_.send(zmq::buffer("PING"), zmq::send_flags::sndmore);
+        dealer_.send(zmq::buffer(identity_), zmq::send_flags::none);
+
+        std::cout << "[" << identity_ << "] ❤️ Sent heartbeat" << std::endl;
+    }
 }
+
+} // namespace zynq_rpc
