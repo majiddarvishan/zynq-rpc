@@ -13,9 +13,12 @@ Client::Client(const std::string& server_addr)
     dealer_.connect(server_addr);
 
     // Register with HELLO
+    ControlPacket pkt{ControlType::HELLO, identity_};
+    auto frames = pkt.to_frames();
+
     dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
-    dealer_.send(zmq::buffer("HELLO"), zmq::send_flags::sndmore);
-    dealer_.send(zmq::buffer(identity_), zmq::send_flags::none);
+    dealer_.send(frames[0], zmq::send_flags::sndmore);
+    dealer_.send(frames[1], zmq::send_flags::none);
 
     // Start threads
     worker_ = std::thread([this]{ poll_loop(); });
@@ -33,9 +36,12 @@ Client::~Client() {
 void Client::unbind() {
     if (running_) {
         std::cout << "[" << identity_ << "] 👋 Sending BYE" << std::endl;
+        ControlPacket pkt{ControlType::BYE, identity_};
+        auto frames = pkt.to_frames();
+
         dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
-        dealer_.send(zmq::buffer("BYE"), zmq::send_flags::sndmore);
-        dealer_.send(zmq::buffer(identity_), zmq::send_flags::none);
+        dealer_.send(frames[0], zmq::send_flags::sndmore);
+        dealer_.send(frames[1], zmq::send_flags::none);
     }
 }
 
@@ -76,9 +82,12 @@ void Client::heartbeat_loop() {
     while (running_) {
         std::this_thread::sleep_for(std::chrono::seconds(3));
 
+        ControlPacket pkt{ControlType::PING, identity_};
+        auto frames = pkt.to_frames();
+
         dealer_.send(zmq::message_t(), zmq::send_flags::sndmore);
-        dealer_.send(zmq::buffer("PING"), zmq::send_flags::sndmore);
-        dealer_.send(zmq::buffer(identity_), zmq::send_flags::none);
+        dealer_.send(frames[0], zmq::send_flags::sndmore);
+        dealer_.send(frames[1], zmq::send_flags::none);
 
         std::cout << "[" << identity_ << "] ❤️ Sent heartbeat" << std::endl;
     }

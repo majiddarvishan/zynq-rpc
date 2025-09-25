@@ -15,6 +15,35 @@
 
 namespace zynq_rpc {
 
+enum class ControlType : uint8_t {
+    HELLO = 1,
+    PING  = 2,
+    BYE   = 3
+};
+
+struct ControlPacket {
+    ControlType type;
+    std::string identity;
+
+    // Serialize to zmq frames
+    std::vector<zmq::message_t> to_frames() const {
+        std::vector<zmq::message_t> frames;
+        frames.emplace_back(&type, sizeof(type));
+        frames.emplace_back(identity.data(), identity.size());
+        return frames;
+    }
+
+    // Parse from zmq frames
+    static ControlPacket from_frames(const zmq::message_t& f1, const zmq::message_t& f2) {
+        if (f1.size() != sizeof(ControlType))
+            throw std::runtime_error("Invalid control frame size");
+        ControlType t;
+        std::memcpy(&t, f1.data(), sizeof(t));
+        std::string id(static_cast<const char*>(f2.data()), f2.size());
+        return {t, id};
+    }
+};
+
 struct TimeoutException : public std::runtime_error {
     TimeoutException(const std::string& msg) : std::runtime_error(msg) {}
 };

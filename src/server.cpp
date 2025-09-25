@@ -112,23 +112,26 @@ void Server::poll_loop() {
 
             last_seen_[client_id] = std::chrono::steady_clock::now();
 
-            // if (frame1 == "HELLO") {
-            if (strncmp(frame1.c_str(), "HELLO", 5) == 0) {
-                if (std::find(clients_.begin(), clients_.end(), client_id) == clients_.end()) {
-                    clients_.push_back(client_id);
-                    std::cout << "[Server] 🎉 New client registered: " << client_id << std::endl;
+            try {
+                ControlPacket pkt = ControlPacket::from_frames(first, second);
+                switch (pkt.type) {
+                    case ControlType::HELLO:
+                        if (std::find(clients_.begin(), clients_.end(), pkt.identity) == clients_.end()) {
+                            clients_.push_back(pkt.identity);
+                            std::cout << "[Server] 🎉 New client registered: " << pkt.identity << std::endl;
+                        }
+                        break;
+                    case ControlType::PING:
+                        std::cout << "[Server] 🔄 Heartbeat from " << pkt.identity << std::endl;
+                        break;
+                    case ControlType::BYE:
+                        std::cout << "[Server] 👋 Client says BYE: " << pkt.identity << std::endl;
+                        clients_.erase(std::remove(clients_.begin(), clients_.end(), pkt.identity), clients_.end());
+                        last_seen_.erase(pkt.identity);
+                        break;
                 }
-            } else if (frame1 == "PING") {
-                std::cout << "[Server] 🔄 Heartbeat from " << client_id << std::endl;
-            }
-            else if (frame1 == "BYE")
-            {
-                std::cout << "[Server] 👋 Client says BYE: " << client_id << std::endl;
-                clients_.erase(std::remove(clients_.begin(), clients_.end(), client_id), clients_.end());
-                last_seen_.erase(client_id);
-            }
-            else {
-                // normal response
+            } catch (...) {
+                // Not a control packet → treat as response
                 std::string resp_id = frame1;
                 std::string resp_val = frame2;
 
