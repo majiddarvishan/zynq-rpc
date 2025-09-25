@@ -1,5 +1,8 @@
 #include "zynq_rpc.hpp"
 
+#include <zmq.h>
+
+
 namespace zynq_rpc {
 
 Server::Server(const std::string& bind_addr, int timeout_sec)
@@ -8,12 +11,88 @@ Server::Server(const std::string& bind_addr, int timeout_sec)
 {
     router_.bind(bind_addr);
     worker_ = std::thread([this]{ poll_loop(); });
+
+    // Setup monitor
+    std::string mon_endpoint = "inproc://server_monitor";
+    zmq_socket_monitor((void*)router_, mon_endpoint.c_str(), ZMQ_EVENT_DISCONNECTED);
+
+    monitor_socket_ = zmq::socket_t(context_, zmq::socket_type::pair);
+    monitor_socket_.connect(mon_endpoint);
+    monitor_thread_ = std::thread([this]{ monitor_loop(); });
 }
 
 Server::~Server() {
     running_ = false;
     if (worker_.joinable()) worker_.join();
+
+    if (monitor_thread_.joinable()) monitor_thread_.join();
+    monitor_socket_.close();
 }
+
+void Server::monitor_loop() {
+    while (running_) {
+        zmq::message_t event_msg;
+        zmq::message_t addr_msg;
+
+        auto res = monitor_socket_.recv(event_msg, zmq::recv_flags::dontwait);
+        if (!res) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+
+        // Event struct
+        zmq_event_t event;
+        std::memcpy(&event, event_msg.data(), sizeof(event));
+
+        // Endpoint string
+        monitor_socket_.recv(addr_msg);
+        std::string endpoint(static_cast<char*>(addr_msg.data()), addr_msg.size());
+
+        if (event.event == ZMQ_EVENT_DISCONNECTED) {
+            std::lock_guard<std::mutex> lock(mutex_);
+
+            std::cout << "[Server] 🔌 Disconnection at endpoint: " << endpoint << std::endl;
+
+            // Try to find client by endpoint (best-effort)
+            for (auto it = clients_.begin(); it != clients_.end();) {
+                if (last_seen_.find(*it) != last_seen_.end()) {
+                    std::cout << "[Server] ⚠ Removing client: " << *it << std::endl;
+                    last_seen_.erase(*it);
+                    it = clients_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    }
+}
+// void Server::monitor_loop(const std::string& endpoint) {
+//     while (running_) {
+//         zmq::message_t event_msg;
+//         zmq::message_t addr_msg;
+//         if (!monitor_socket_.recv(event_msg, zmq::recv_flags::dontwait)) {
+//             std::this_thread::sleep_for(std::chrono::milliseconds(50));
+//             continue;
+//         }
+//         monitor_socket_.recv(addr_msg);
+
+//         // Decode event struct
+//         zmq_event_t event;
+//         memcpy(&event, event_msg.data(), sizeof(event));
+
+//         if (event.event == ZMQ_EVENT_DISCONNECTED) {
+//             std::string addr(static_cast<char*>(addr_msg.data()), addr_msg.size());
+//             std::lock_guard<std::mutex> lock(mutex_);
+
+//             // Find which client got disconnected
+//             for (auto it = clients_.begin(); it != clients_.end();) {
+//                 std::cout << "[Server] 🔌 Client disconnected: " << *it << std::endl;
+//                 last_seen_.erase(*it);
+//                 it = clients_.erase(it);
+//             }
+//         }
+//     }
+// }
 
 std::string Server::pick_client() {
     if (clients_.empty()) {

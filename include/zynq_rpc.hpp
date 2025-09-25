@@ -30,7 +30,7 @@ public:
     std::future<std::string> send_request(const std::string& request_id,
                                           const std::string& payload);
 
-    size_t active_client_count() {
+        size_t active_client_count() {
         std::lock_guard<std::mutex> lock(mutex_);
         return clients_.size();
     }
@@ -46,9 +46,16 @@ private:
     void check_timeouts();
     void cleanup_clients();
     std::string pick_client();
+    // void monitor_loop(const std::string& endpoint);
+    void monitor_loop();
+
 
     zmq::context_t context_;
     zmq::socket_t router_;
+
+    zmq::socket_t monitor_socket_;
+    std::thread monitor_thread_;
+
     std::unordered_map<std::string, RequestInfo> pending_;
     std::deque<std::string> clients_;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> last_seen_;
